@@ -1,0 +1,269 @@
+---
+title: "Bellabeat, non-users device analysis"
+author: "Gokhan Alphan"
+date: "2024-10-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/Users/gokhanalphan/RStudioFile/Belladata")
+```
+
+#### (A case study)
+
+## Business strategy and objectives.
+
+This study aims to highlight the growing awareness among individuals about the importance of maintaining their health amidst their busy lives and how Bellabeat addresses this need by offering health tracking products that blend both functionality and style to meet user expectations.
+
+In today’s society, as women juggle multiple responsibilities, they increasingly recognize that their health is their most valuable asset. Understanding this, Bellabeat customers seek products that not only support their well-being but also complement their lifestyle with both fashion and functionality. That’s why we prioritize their expectations from digital health trackers, ensuring they provide the efficiency and features users need to stay on top of their health.
+
+We will address the questions of which products we can apply the results we will obtain from health data in the most effective way, and whether we can benefit from these results in our digital marketing channels.
+
+The data collected and analyzed [here](https://www.kaggle.com/datasets/arashnic/fitbit) and the license [here](https://creativecommons.org/publicdomain/zero/1.0/)
+
+***
+Data preparation(DP): I preferred to do each csv table upload and its data preparation in its own chart workplace.
+
+```{r Loading Packages, message=FALSE, warning=FALSE}
+
+library(tidyverse)
+library(scales)
+library(janitor)
+library(paletteer)
+
+```
+
+## Glimpse for users.
+
+Body mass index(BMI) is a method used to estimate the fat ratio in the body through the height and weight information of the person. 
+
+BMI Ranges;
+
+* Underweight: Less than 18.5
+* Optimum range: 18.5 to 24.9
+* Overweight: 25 to 29.9
+* Class I obesity: 30 to 34.9
+
+Most of the participants in the table below have a BMI of 25 and above. In a way, this shows that users prefer health trackers to be healthy and lose weight.
+
+***
+Data preparation(DP): I merged tables, grouped them for a quick overview, and calculated the heights of individuals to enrich the information in the re-ordered print.
+
+```{r Loading csv files, and take a look at users profiles, message=FALSE, warning=FALSE}
+
+c_weight <- bind_rows(read_csv("weightLogInfo_merged_1.csv", show_col_types = FALSE),
+                      read_csv("weightLogInfo_merged_2.csv", show_col_types = FALSE)) %>% 
+  mutate(height = round(sqrt(WeightKg / BMI), 2)) %>% 
+  group_by(Id) %>% summarize(mean_weight = round(mean(WeightKg), 1), height = mean(height), BMI_ = round(mean(BMI))) %>% 
+  arrange(-BMI_)
+
+print(c_weight)
+
+```
+
+## Glimpse for daily usage.
+
+It is necessary for a person to take an average of 7k - 10k ( approximately 8 km) steps per day to be healthy. This may vary with factors such as age, weight and health status. 
+
+Charts show that there are people who walk 7k or less steps or 5 to 8km and burn 2k or less calories in a day.
+On average, a healthy woman needs to burn 1.8k - 2.4k calories and a man needs to burn 2.2k - 3k calories in a day. So walkers taking less than 7k steps (or less than 8km) and burning less than 2k calories indicate that some participants are not active enough to be healthy. 
+
+On the other hand, there are walkers who achieve more than 10k steps (or 8km and more) and more than 2.5k calories burned, who focus on being healthy with high intensity activities.
+
+***
+DP: I merged the csv files, removed NA values and kept only unique data. After that I manually filtered outliers, changed the order of dates and calculated total activity minutes. Then I used ggplot2 to create scatter plots.
+
+```{r merging daily usage csv files, echo=FALSE, message=FALSE, warning=FALSE}
+
+c_daily_act <- bind_rows(read_csv("dailyActivity_merged_1.csv", show_col_types = FALSE), 
+                         read_csv("dailyActivity_merged_2.csv", show_col_types = FALSE)) %>%
+  drop_na() %>% distinct() %>% 
+  filter(TotalSteps > 0 & FairlyActiveMinutes < 150 & LightlyActiveMinutes < 580 & SedentaryMinutes < 1080) %>% 
+  mutate(ActivityDate = mdy(ActivityDate)) %>% 
+  mutate(totalActiveMinutes = VeryActiveMinutes + FairlyActiveMinutes + LightlyActiveMinutes) %>% 
+  arrange(Id, ActivityDate)
+
+ggplot(c_daily_act, aes(x = TotalSteps, y = Calories)) + geom_jitter() + 
+  geom_smooth(method = "loess", formula = "y ~ x", alpha = .5, color = "purple", fill = "lightgreen") + 
+  labs(title = "Calories & Total Steps Correlation", x = "Total Steps") +
+  annotate("rect", xmin = 1500, xmax = 10000, ymin = 800, ymax = 2200, alpha = 0.2, color = "red")
+
+ggplot(c_daily_act, aes(x = TotalDistance, y = Calories)) + geom_jitter() + 
+  geom_smooth(method = "loess", formula = "y ~ x", alpha = .5, color = "purple", fill = "lightgreen") +
+  labs(title = "Calories & Total Distance Correlation", x = "Total Distance") +
+  annotate("rect", xmin = 1, xmax = 8, ymin = 800, ymax = 2200, alpha = 0.2, color = "red")
+
+```
+
+## When we look at the total activity in a day.
+
+Many of the participants burned calories with light activities, which can last up to 500 minutes. These activities include cleaning the house, ironing, office work, etc. The graph shows that fairly active and very active minutes were much smaller than light activities. Many participants exercised longer than 20 minutes in a day, some of them who has passion exercised up to 100 even 120 minutes in a day. 
+
+If we consider changing individuals' activity habits from light to moderate activities (which involves small area in the chart), we can offer healthy lifestyles for customers. Like walking to jogging or cycling, climbing stairs instead of using the lift. 
+
+***
+DP: I merged the csv files, changed the date order, filtered out some columns and outliers, changed the table to wider to longer, then used ggplot2 to create a scatter plot for each type of activity.
+
+```{r Active Minutes, message=FALSE, warning=FALSE}
+
+c_daily_longer <- c_daily_act %>% mutate(daysof = wday(ActivityDate, label = TRUE, abbr = FALSE)) %>% 
+  select(Id, daysof, TotalSteps, TotalDistance, VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes, Calories) %>% 
+  filter(TotalSteps > 0 & FairlyActiveMinutes < 150 & LightlyActiveMinutes < 580) %>% 
+  pivot_longer(cols = c(VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes), names_to = "ActivityTypes", values_to = "Minutes") %>% mutate(ActivityTypes = fct_reorder(ActivityTypes, Minutes))
+
+ggplot(c_daily_longer, aes(x = Minutes, y = Calories)) + geom_jitter(aes(colour = ActivityTypes, shape = ActivityTypes)) +
+  scale_color_manual(values=c("#892523", "#69b3a2", "purple")) +
+  labs(title = "Calories & Active Minutes Correlation")
+
+```
+
+## Sedentary time is longer than we think.
+
+A day is 1440 minutes. If we subtract ~6 hours of sleep (360 minutes), there remain approximately 1000 hours. 
+
+The graph shows us that there are many people who spend their time at office desks or indoor without any physical activity. Especially people who spend 600 to 900 minutes in a sedentary state and burn less than 2k calories a day are many in the chart. On the upper side of the chart there are people who spent higher than 2.5k calories in a day somehow created time and did some activities that also means focus on healthy living. 
+
+```{r Sedentary Minutes, message=FALSE, warning=FALSE}
+
+ggplot(c_daily_act, aes(x = SedentaryMinutes, y = Calories)) + geom_point(aes(colour = SedentaryMinutes)) + 
+  geom_smooth(size = .7, fill = "lightblue", method = "loess", formula = "y ~ x") + 
+  scale_color_gradient(low = "green", high = "purple") +
+  labs(title = "Calories & Sedentary Minutes Comparing", x = "Sedentary Minutes") +
+  theme(legend.position = "none") +
+  annotate("rect", xmin = 600, xmax = 1050, ymin = 1000, ymax = 2300, alpha = 0.2, color = "red")
+
+```
+
+## Days and times based on user preferences.
+
+The graph shows that users do activities such as walking or running, especially on Saturdays, it is noteworthy that they take time for themselves, even on the weekend.
+This may also indicate that they are trying to evaluate the remaining time from the office and working hours in the previous table. On the remaining days, they show similar averages, except that they walk or run more distances, even if it is a little on Monday.
+
+***
+DP: I created a new table that grouped the days and calculated the averages by day. Then I used ggplot2 to create a bar chart.
+
+```{r daily routines, message=FALSE, warning=FALSE}
+
+avg_act2 <- c_daily_longer %>% 
+  group_by(daysof) %>% summarize(mean_steps = round(mean(TotalSteps)), mean_dist = round(mean(TotalDistance), 2))
+
+ggplot(avg_act2) + geom_col(aes(x = daysof, y = mean_dist, fill = daysof)) +
+  scale_fill_paletteer_d("ggprism::floral") +
+  labs(title = "Daily Average Distance", y = "Distance in km") +
+  theme(legend.position = "none", axis.title.x = element_blank())
+
+```
+
+## What hours do they prefer?
+
+When we look at the hourly data, the average calories and intensity values in the line graph for 35 users show a similar pattern. There is an increase in activity after 15:00 and a decrease around 19:00, which is the peak. This picture reminds me of a typical 8-5 worker walking or exercising after work. It also shows that users who have time in the afternoon have an average of 120 calories and up to 20 intensity levels.
+
+***
+DP: I merged hourly csv files, reformatted date values, grouped hourly values and calculated averages. Then changed the table from wider to longer. Finally used ggplot2 to create a line chart.
+
+```{r combined two values in time, message=FALSE, warning=FALSE}
+
+c_hourly_cal <- bind_rows(read_csv("hourlyCalories_merged_1.csv", show_col_types = FALSE), 
+                          read_csv("hourlyCalories_merged_2.csv", show_col_types = FALSE)) %>% 
+  drop_na() %>% distinct() %>% mutate(ActivityHour = mdy_hms(ActivityHour)) %>% 
+  arrange(Id, ActivityHour)
+
+c_hourly_intensity <- bind_rows(read_csv("hourlyIntensities_merged_1.csv", show_col_types = FALSE),
+                                read_csv("hourlyIntensities_merged_2.csv", show_col_types = FALSE)) %>% 
+  drop_na() %>% distinct() %>% mutate(ActivityHour = mdy_hms(ActivityHour)) %>% 
+  arrange(Id, ActivityHour)
+
+combined_hour <- left_join(c_hourly_cal, c_hourly_intensity, by = c("Id", "ActivityHour")) %>% 
+  mutate(ActivityHour = format(ActivityHour, "%H:%M")) %>%
+  mutate(ActivityHour = factor(ActivityHour, levels = unique(ActivityHour))) %>% 
+  group_by(ActivityHour) %>%
+  summarize(mean_calories = round(mean(Calories, na.rm = TRUE)), 
+                                mean_intensity = round(mean(TotalIntensity, na.rm = TRUE))) %>% 
+  pivot_longer(cols = c(mean_calories, mean_intensity), names_to = "Type", values_to = "Value")
+
+ggplot(combined_hour) + geom_line(aes(x = ActivityHour, y = Value, group = Type, colour = Type)) +
+  scale_colour_manual(values = c("purple", "#69b3a2")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.title = element_blank()) +
+  labs(title = "Hourly Average Calories and Intensity Levels")
+
+```
+
+## Meaning of Heart Rate Deviations.
+
+In the printout, we can see the standard deviations(SD) of the users' heart rate. This shows the distance from the mean heart rate. A high SD value may indicate that the user is doing high intensity exercise and is a good sign. However, it may also indicate a health problem such as tachycardia. A low SD may indicate that the user is not exercising enough or is exercising at below average intensity.
+
+***
+DP: I merged csv files, removed NA values, kept distinct values only, reformatted date and arranged them in orderly. After that I created new table which grouped by individuals and got minimum, maximum, median and standard deviation values of heart rates. Then changed the table wider to longer for ggplot2 boxplot chart. (for the print output and the boxplot chart)
+
+```{r Loading heartrate csvs and creating new titbble, message=FALSE, warning=FALSE}
+
+c_heartrate <- bind_rows(read_csv("heartrate_seconds_merged_1.csv", show_col_types = FALSE), 
+                         read_csv("heartrate_seconds_merged_2.csv", show_col_types = FALSE)) %>% 
+  drop_na() %>% distinct() %>% mutate(Time = mdy_hms(Time)) %>% arrange(Id, Time)
+
+smp_heartrate <- c_heartrate %>% group_by(Id) %>% 
+  summarize(min_rate = min(Value), median_rate = round(median(Value), 0), max_rate = max(Value), std_deviation = round(sd(Value))) %>% 
+  pivot_longer(cols = c(min_rate, median_rate, max_rate, std_deviation), names_to = "rate_types", values_to = "bpm_")
+
+print(smp_heartrate %>% filter(rate_types == "std_deviation") %>% arrange(-bpm_))
+
+```
+
+## The heart rate range indicates some types of users.
+
+When we look at the minimum, median and maximum heart rate data obtained from users, the average value range in the table appears to be in the normal range (60-90 BPM).
+
+The minimum range is similar to people with a sports background (40–60 BPM), which indicates that most users are engaged in some form of activity. People who exercise regularly have stronger heart muscles, which contribute to a lower heart rate when resting or sleeping, especially athletes.
+
+While the maximum values change according to the activity, some have high values, which means they have been involved in high intensity activities. We can see that some users have outlier values, I especially wanted to leave the point that appears as 125 BMP in the table. Although this user's maximum value seems low, it could also be an outlier. The reason for this could be lack of activity, a health problem, but it could also be due to a hardware or software problem with the device he/she is using.
+
+```{r users heart rate ranges, message=FALSE, warning=FALSE}
+
+ggplot(smp_heartrate %>% filter(rate_types != "std_deviation"), aes(x = reorder(rate_types, bpm_), y = bpm_, fill = rate_types)) + geom_boxplot() +
+  labs(title = "BPM Range for Individuals", y = "BPM", fill = "BPM Ranges") +
+  scale_y_continuous(breaks = seq(0, 220, by = 20)) + theme(axis.text.x = element_blank(), axis.title.x = element_blank()) +
+  scale_fill_manual(values=c("#892523", "purple", "#69b3a2"))
+
+```
+
+## Sleep data may have something to hide.
+
+When a person is asleep, the heart rate should stay between 60-80 BPM, if there is a sport background this value can be in the lower range 40-60 BPM, but lower than 40 or higher than 90 BPM indicates a problem. The table below shows filtered users with heart rates above 90 BPM during the sleep phases. Although the values are frightening for some users(reds), the reasons for this can be varied and could be a technical problem with the device or a real health issue. Factors that cause high heart rates during sleep can be anxiety, stress, sleep apnoea or tachycardia. 
+
+In the chart recordings spread over the three phases of sleep, the majority in the first phase stands out, and the recordings between 120-140 BPM attract attention. It is also noteworthy that the problem of high heart rate occurs in the third phase, the deepest sleep.
+
+* 1st and 2nd Phases: Light Sleep and Deeper Sleep,  
+* 3rd Phase: Deepest Sleep
+
+***
+DP: I created a new table where I calculated average heart rates by minutes. The heartrate data and the sleep data were joined using inner join by keys, and the new table shows the heartrate when the user was sleeping. Finally, I filtered the heartrates higher than 90 BPM to get high values for sleeping. I used ggplot2 scatter plot to visulize. 
+
+```{r heart rate while sleeping, message=FALSE, warning=FALSE}
+
+c_sleep_min <- bind_rows(read_csv("minuteSleep_merged_1.csv", show_col_types = FALSE),
+                         read_csv("minuteSleep_merged_2.csv", show_col_types = FALSE)) %>% 
+  drop_na() %>% distinct() %>% mutate(date = mdy_hms(date), date = floor_date(date, "minute")) %>% 
+  rename(Time = date) %>% arrange(Id, Time)
+
+round_min_hr <- c_heartrate %>% mutate(Time = floor_date(Time, "minute")) %>% group_by(Id, Time) %>% 
+  summarize(avg_rate = round(mean(Value)), .groups = "drop")
+
+sleep_hr_join <- inner_join(c_sleep_min, round_min_hr, by = c("Id","Time")) %>% 
+  filter(avg_rate > 90)
+
+ggplot(sleep_hr_join, aes(x = value, y = avg_rate, colour = avg_rate)) + geom_jitter() + 
+  labs(title = "Heart rate over 90 BPM during sleep", x = "Sleep Phases", y = "BPM", colour = "Over-BPM Gauge") +
+  scale_color_gradient(low = "orange", high = "red")
+
+```
+
+## Recommendations
+***
+1- A significant portion of users have a high BMI, with weight loss and overall health improvement being their primary goals. The data reveals that many of these users work in sedentary jobs, sitting for up to 13 hours during the day. However, they tend to be more physically active and social on Saturdays. Some users attempt to offset their inactivity by engaging in medium-to-high-intensity workouts for 40–50 minutes in the afternoon, but the majority still end their day with light activities.
+
+To support these users in reaching their health goals, Bellabeat could implement targeted notifications through its health-tracking devices. For example, prompts such as “Just 20 minutes of moderate exercise after work is enough to make a difference!” or “Switch from light to moderate activity for better results!” could motivate users to adopt healthier habits. Furthermore, users in office environments with limited mobility who also value fashionable and functional products represent a key target audience for Bellabeat’s digital marketing efforts.
+
+2- Monitoring heart rate variability provides valuable insights into users’ overall heart health and activity levels. If a user’s heart rate shows a low standard deviation, it typically suggests they have a more stable and healthy heart. In contrast, a high standard deviation could indicate intense physical activity, elevated stress levels, or even underlying heart conditions. For example, while a low BPM at rest is normal for someone with an athletic background, it could be risky for individuals without such training. Additionally, users whose peak heart rates remain below average might have health concerns or may not be engaging in enough moderate to intense physical activity. By continuously monitoring this data through our health tracking devices, we can provide users with personalized insights about their heart health and encourage them to stay active.
+
+3- Sleep data provides crucial insights into users’ overall health, particularly when it comes to heart rate patterns during sleep. If a user’s heart rate exceeds 90 BPM during sleep, it can signal issues that require attention, such as anxiety, stress, sleep apnea, or even conditions like tachycardia. These issues can lead to decreased sleep quality, which in turn negatively impacts the user’s daily life and relationships. By tracking users’ sleep data, along with menstrual data and short-term heart rate changes outside of physical activity, we can measure stress levels more accurately. This information allows us to raise user awareness and help them take actionable steps toward improving their health. For example, if a user frequently experiences elevated heart rates at night, we can recommend consulting a healthcare professional or using the Bellabeat Health Tracker to set up an alert for themselves or a family member during such episodes.
